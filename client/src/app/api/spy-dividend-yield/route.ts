@@ -6,20 +6,21 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const period = searchParams.get("period") || "11mo";
+  const source = searchParams.get("source") || "spy"; // spy
 
-  // SPY 배당수익률만 계산
+  // FRED에서 제공하는 S&P 500 배당수익률 시계열 반환
   const child = spawnPythonScript("fetch_dividend_yield.py", [
-    "--ticker",
-    "SPY",
     "--period",
     period,
+    "--source",
+    source,
   ]);
 
   let stdout = "";
   let stderr = "";
 
-  child.stdout.on("data", (d) => (stdout += d.toString()));
-  child.stderr.on("data", (d) => (stderr += d.toString()));
+  child.stdout?.on("data", (d) => (stdout += d.toString()));
+  child.stderr?.on("data", (d) => (stderr += d.toString()));
   child.on("error", (err) => {
     stderr += err.message;
   });
