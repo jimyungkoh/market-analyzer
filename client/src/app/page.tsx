@@ -140,16 +140,31 @@ export default function Home() {
             모멘텀(기울기)을 평가합니다.
           </p>
 
-          <div className="mt-4 w-full">
-            <LineChart
-              series={[
-                { name: "SPY", data: spy },
-                { name: "SPY SMA(20)", data: spySma, color: "#ef4444" },
-                { name: "TIP", data: tip, color: "#06b6d4" },
-                { name: "TIP SMA(20)", data: tipSma, color: "#16a34a" },
-              ]}
-              height={260}
-            />
+          <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div>
+              <h3 className="font-semibold">SPY</h3>
+              <div className="mt-2 w-full">
+                <LineChart
+                  series={[
+                    { name: "SPY", data: spy },
+                    { name: "SPY SMA(20)", data: spySma, color: "#ef4444" },
+                  ]}
+                  height={220}
+                />
+              </div>
+            </div>
+            <div>
+              <h3 className="font-semibold">TIP</h3>
+              <div className="mt-2 w-full">
+                <LineChart
+                  series={[
+                    { name: "TIP", data: tip, color: "#06b6d4" },
+                    { name: "TIP SMA(20)", data: tipSma, color: "#16a34a" },
+                  ]}
+                  height={220}
+                />
+              </div>
+            </div>
           </div>
         </section>
 
