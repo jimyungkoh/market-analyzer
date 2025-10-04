@@ -1,6 +1,7 @@
 "use client";
 
 import type { LineChartProps } from "@/components/line-chart";
+import clsx from "clsx";
 import dynamic from "next/dynamic";
 
 const LineChart = dynamic<LineChartProps>(
@@ -16,25 +17,23 @@ const LineChart = dynamic<LineChartProps>(
   }
 );
 
-interface RiskChartProps {
+interface ChartCardProps {
   title?: string;
   series: LineChartProps["series"];
   height: number;
   className?: string;
 }
 
-export default function RiskChart({
+export default function ChartCard({
   title,
   series,
   height,
   className,
-}: RiskChartProps) {
-  const containerClasses = `w-full ${className || ""}`.trim();
-
+}: ChartCardProps) {
   return (
-    <div className={containerClasses}>
+    <div className={clsx("w-full", className)}>
       {title && <h3 className="font-semibold">{title}</h3>}
-      <div className={title ? "mt-2 w-full" : "w-full"}>
+      <div className={clsx("w-full", { "mt-2": title })}>
         <LineChart series={series} height={height} />
       </div>
     </div>

@@ -7,7 +7,7 @@ import {
   TimeSeriesPoint,
 } from "@/lib/indicators";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import RiskChart from "./_components/RiskChart";
+import ChartCard from "./_components/ChartCard";
 
 type PricesApiResponse = {
   symbols: string[];
@@ -127,7 +127,7 @@ export default function Home() {
           </p>
 
           <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <RiskChart
+            <ChartCard
               title="SPY"
               series={[
                 { name: "SPY", data: spy },
@@ -135,7 +135,7 @@ export default function Home() {
               ]}
               height={220}
             />
-            <RiskChart
+            <ChartCard
               title="TIP"
               series={[
                 { name: "TIP", data: tip, color: "#06b6d4" },
@@ -171,7 +171,7 @@ export default function Home() {
           </p>
 
           <div className="mt-4">
-            <RiskChart
+            <ChartCard
               series={[
                 {
                   name: "S&P 500 Dividend Yield (%)",
