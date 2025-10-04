@@ -1,27 +1,13 @@
 "use client";
 
-import type { LineChartProps } from "@/components/line-chart";
 import { Button } from "@/components/ui/button";
 import {
   calculateSMA,
   momentumDirection,
   TimeSeriesPoint,
 } from "@/lib/indicators";
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-const LineChart = dynamic<LineChartProps>(
-  () => import("@/components/line-chart"),
-  {
-    ssr: false,
-    loading: ({ height = 240 }) => (
-      <div
-        className="w-full animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-900/40"
-        style={{ height }}
-      />
-    ),
-  }
-);
+import ChartCard from "./_components/ChartCard";
 
 type PricesApiResponse = {
   symbols: string[];
@@ -140,15 +126,22 @@ export default function Home() {
             모멘텀(기울기)을 평가합니다.
           </p>
 
-          <div className="mt-4 w-full">
-            <LineChart
+          <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
+            <ChartCard
+              title="SPY"
               series={[
                 { name: "SPY", data: spy },
                 { name: "SPY SMA(20)", data: spySma, color: "#ef4444" },
+              ]}
+              height={220}
+            />
+            <ChartCard
+              title="TIP"
+              series={[
                 { name: "TIP", data: tip, color: "#06b6d4" },
                 { name: "TIP SMA(20)", data: tipSma, color: "#16a34a" },
               ]}
-              height={260}
+              height={220}
             />
           </div>
         </section>
@@ -177,8 +170,8 @@ export default function Home() {
             최근 배당수익률이 1.32% 이하이면 위험 신호를 표시합니다.
           </p>
 
-          <div className="mt-4 w-full">
-            <LineChart
+          <div className="mt-4">
+            <ChartCard
               series={[
                 {
                   name: "S&P 500 Dividend Yield (%)",
