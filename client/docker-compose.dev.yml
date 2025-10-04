@@ -2,5 +2,7 @@ services:
   scripts:
     build: .
     command: ["sleep", "infinity"]
+    environment:
+      FRED_API_KEY: ${FRED_API_KEY:-}
     volumes:
       - ./scripts:/app/scripts
