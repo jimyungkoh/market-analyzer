@@ -1,0 +1,6 @@
+services:
+  scripts:
+    build: .
+    command: ["sleep", "infinity"]
+    volumes:
+      - ./scripts:/app/scripts
