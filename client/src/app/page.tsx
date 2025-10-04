@@ -38,7 +38,7 @@ export default function Home() {
         fetch(`/api/prices?tickers=SPY,TIP&period=11mo&interval=1d`, {
           cache: "no-store",
         }),
-        fetch(`/api/spy-dividend-yield?period=11mo`, { cache: "no-store" }),
+        fetch(`/api/spy-dividend-yield?period=2y`, { cache: "no-store" }),
       ]);
 
       if (!pricesRes.ok)
