@@ -62,18 +62,66 @@ export default function LineChart({
     .sort((a, b) => a[0] - b[0])
     .map(([, row]) => row);
 
+  // Compute common start domain so that all series have values (avoid truncated SMA)
+  const seriesStartTimestamps = series
+    .map((s) =>
+      s.data.length > 0
+        ? Math.min(
+            ...s.data.map((p) =>
+              p.date instanceof Date
+                ? p.date.getTime()
+                : new Date(p.date).getTime()
+            )
+          )
+        : Number.POSITIVE_INFINITY
+    )
+    .filter((t) => Number.isFinite(t)) as number[];
+
+  const domainStart =
+    seriesStartTimestamps.length > 0
+      ? Math.max(...seriesStartTimestamps)
+      : data[0]?.date ?? 0;
+
+  const visibleData = data.filter((row) => row.date >= domainStart);
+
+  // Prepare legend payload from given series to avoid duplicate legend entries (e.g., Area + Line)
+  const legendPayload = series.map((s, idx) => ({
+    id: s.name,
+    label: s.name,
+    color: s.color || defaultPalette[idx % defaultPalette.length],
+  }));
+
+  const renderLegend = () => (
+    <div className="recharts-default-legend" style={{ paddingTop: 8 }}>
+      <ul className="recharts-default-legend legend-items">
+        {legendPayload.map((item) => (
+          <li
+            key={item.id}
+            className="recharts-legend-item"
+            style={{ display: "inline-block", marginRight: 12 }}
+          >
+            <svg width={10} height={10} style={{ marginRight: 6 }}>
+              <rect width={10} height={10} fill={item.color} />
+            </svg>
+            <span style={{ color: "#52525b", fontSize: 12 }}>{item.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
   return (
     <div className="w-full">
       <ResponsiveContainer width="100%" height={height}>
         <RechartsLineChart
-          data={data}
+          data={visibleData}
           margin={{ top: 10, right: 20, bottom: 30, left: 32 }}
         >
           <CartesianGrid stroke="#e5e7eb" vertical={false} />
           <XAxis
             dataKey="date"
             type="number"
-            domain={["dataMin", "dataMax"]}
+            domain={[domainStart, "dataMax"]}
             tickFormatter={(ts) =>
               new Date(Number(ts)).toLocaleDateString("ko-KR", {
                 month: "short",
@@ -95,7 +143,7 @@ export default function LineChart({
               new Date(Number(ts)).toLocaleString("ko-KR")
             }
           />
-          <Legend />
+          <Legend content={() => renderLegend()} />
           {series.map((s, idx) => {
             const color =
               s.color || defaultPalette[idx % defaultPalette.length];

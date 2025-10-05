@@ -35,7 +35,7 @@ export default function Home() {
     setError(null);
     try {
       const [pricesRes, yieldRes] = await Promise.all([
-        fetch(`/api/prices?tickers=SPY,TIP&period=11mo&interval=1d`, {
+        fetch(`/api/prices?tickers=SPY,TIP&period=13mo&interval=1d`, {
           cache: "no-store",
         }),
         fetch(`/api/spy-dividend-yield?period=2y`, { cache: "no-store" }),
@@ -63,7 +63,7 @@ export default function Home() {
     loadData();
   }, [loadData]);
 
-  const maWindow = 20; // 20일 단순 이동평균
+  const maWindow = 231; // 11개월(약 231거래일) 단순 이동평균
   const yieldSmaWindow = 120; // 옵션 B용 120일 SMA
   const { spySma, tipSma, spyMomentum, tipMomentum, isRiskA } = useMemo(() => {
     const spySmaLocal = calculateSMA(spy, maWindow);
@@ -125,7 +125,7 @@ export default function Home() {
                 {isRiskA ? "위험" : "안정"}
               </span>
               <span className="text-xs text-zinc-500">
-                SMA(20) 모멘텀: SPY {spyMomentum} / TIP {tipMomentum}
+                SMA(11개월) 모멘텀: SPY {spyMomentum} / TIP {tipMomentum}
               </span>
             </div>
           </div>
@@ -140,7 +140,7 @@ export default function Home() {
               title="SPY"
               series={[
                 { name: "SPY", data: spy },
-                { name: "SPY SMA(20)", data: spySma, color: "#ef4444" },
+                { name: "SPY SMA(11개월)", data: spySma, color: "#ef4444" },
               ]}
               height={220}
             />
@@ -148,7 +148,7 @@ export default function Home() {
               title="TIP"
               series={[
                 { name: "TIP", data: tip, color: "#06b6d4" },
-                { name: "TIP SMA(20)", data: tipSma, color: "#16a34a" },
+                { name: "TIP SMA(11개월)", data: tipSma, color: "#16a34a" },
               ]}
               height={220}
             />
