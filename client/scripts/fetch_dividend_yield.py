@@ -40,9 +40,9 @@ def _parse_period_to_start_ts(period: str) -> "pd.Timestamp":
         start = end - pd.DateOffset(months=11)
     # 비교 대상 인덱스는 tz-naive이므로 시작 시각도 tz 정보를 제거
     try:
-        return start.tz_localize(None)  # type: ignore[attr-defined]
+        return start.tz_localize(None).normalize()  # type: ignore[attr-defined]
     except Exception:
-        return pd.Timestamp(start).tz_localize(None)
+        return pd.Timestamp(start).tz_localize(None).normalize()
 
 
 def _to_month_end_index(index: "pd.Index") -> "pd.DatetimeIndex":
@@ -54,113 +54,104 @@ def _to_month_end_index(index: "pd.Index") -> "pd.DatetimeIndex":
 def _compute_sp500_yield(period: str) -> List[Dict[str, float]]:
     """
     SPY 기반 S&P 500 배당수익률(근사) 시계열을 계산합니다.
-    - 배당: yf.Ticker("SPY").dividends → 월별 합계
-    - 가격: yf.Ticker("SPY").history(interval="1mo") → 월말 종가
-    - 산식: (월별 배당 합계의 12개월 롤링 TTM / 월말 종가) * 100
+
+    - 배당: yf.Ticker("SPY").dividends → 실제 지급일 기준 일간 시리즈(0으로 채움)
+    - 가격: yf.Ticker("SPY").history(interval="1d") → 일간 종가
+    - 산식: 최근 365일 배당 합계(TTM)를 종가로 나눈 뒤 %로 환산
     """
     req_period = (period or "24mo").strip().lower()
 
     spy = yf.Ticker("SPY")
 
-    # 배당 원천: dividends 시리즈 우선, 비어 있으면 history의 Dividends 컬럼 사용
+    # 요청 기간 시작 시각 계산 (이동평균 계산을 위해 버퍼 370일 확보)
+    try:
+        start_ts = _parse_period_to_start_ts(req_period)
+    except Exception:
+        start_ts = pd.Timestamp.now().tz_localize(None) - pd.DateOffset(months=24)
+    start_ts = start_ts.normalize()
+    buffer_start = (start_ts - pd.Timedelta(days=370)).normalize()
+
+    # 일간 가격 데이터 로드 (버퍼 포함)
+    try:
+        df_daily = spy.history(
+            start=buffer_start.to_pydatetime(),
+            interval="1d",
+            auto_adjust=False,
+        )
+        if df_daily.empty:
+            df_daily = spy.history(period="max", interval="1d", auto_adjust=False)
+    except Exception:
+        df_daily = pd.DataFrame()
+
+    if df_daily.empty:
+        return []
+
+    idxd = df_daily.index
+    if isinstance(idxd, pd.DatetimeIndex):
+        df_daily.index = _coerce_tz_naive(idxd)
+    df_daily = df_daily.sort_index()
+
+    if "Close" in df_daily.columns:
+        close = df_daily["Close"].astype("float64")
+    elif "Adj Close" in df_daily.columns:
+        close = df_daily["Adj Close"].astype("float64")
+    else:
+        # 첫 번째 실수형 컬럼 사용
+        close = None
+        for c in df_daily.columns:
+            s = df_daily[c]
+            if hasattr(s, "dtype") and str(s.dtype).startswith("float"):
+                close = s.astype("float64")
+                break
+        if close is None:
+            return []
+
+    close = close[~close.index.duplicated(keep="last")]
+    close.index = close.index.normalize()
+
+    # 배당 데이터 (전체 히스토리 사용)
     div_series = spy.dividends
-    if isinstance(div_series.index, pd.DatetimeIndex):
-        div_series.index = _coerce_tz_naive(div_series.index)
     if div_series.empty:
         try:
             df_actions = spy.history(period="max", interval="1d", auto_adjust=False)
             if not df_actions.empty and "Dividends" in df_actions.columns:
-                idx = df_actions.index
-                if isinstance(idx, pd.DatetimeIndex):
-                    df_actions.index = _coerce_tz_naive(idx)
                 div_series = df_actions["Dividends"].astype("float64")
             else:
-                div_series = pd.Series(dtype=float)
+                div_series = pd.Series(dtype="float64")
         except Exception:
-            div_series = pd.Series(dtype=float)
+            div_series = pd.Series(dtype="float64")
 
-    # 가격 원천: 월간 history 우선, 비어 있으면 일간 후 월말 리샘플
-    try:
-        df_monthly = spy.history(period=req_period, interval="1mo", auto_adjust=False)
-        if df_monthly.empty:
-            df_monthly = spy.history(period="max", interval="1mo", auto_adjust=False)
-    except Exception:
-        df_monthly = pd.DataFrame()
-
-    monthly_close: "pd.Series"
-    if not df_monthly.empty and "Close" in df_monthly.columns:
-        idxm = df_monthly.index
-        if isinstance(idxm, pd.DatetimeIndex):
-            df_monthly.index = _coerce_tz_naive(idxm)
-        monthly_close = df_monthly["Close"]
+    if isinstance(div_series.index, pd.DatetimeIndex):
+        div_series.index = _coerce_tz_naive(div_series.index)
     else:
-        # 폴백: 일간 후 월말 리샘플
         try:
-            df_daily = spy.history(period=req_period, interval="1d", auto_adjust=False)
-            if df_daily.empty:
-                df_daily = spy.history(period="max", interval="1d", auto_adjust=False)
-            if df_daily.empty:
-                return []
-            idxd = df_daily.index
-            if isinstance(idxd, pd.DatetimeIndex):
-                df_daily.index = _coerce_tz_naive(idxd)
-            if "Close" in df_daily.columns:
-                monthly_close = df_daily["Close"].resample("ME").last()
-            elif "Adj Close" in df_daily.columns:
-                monthly_close = df_daily["Adj Close"].resample("ME").last()
-            else:
-                # 첫 번째 숫자 컬럼
-                for c in df_daily.columns:
-                    s = df_daily[c]
-                    if hasattr(s, "dtype") and str(s.dtype).startswith("float"):
-                        monthly_close = s.resample("ME").last()
-                        break
-                else:
-                    return []
+            div_series.index = pd.to_datetime(div_series.index)
         except Exception:
-            return []
+            div_series.index = pd.DatetimeIndex(div_series.index)
+    div_series.index = div_series.index.normalize()
+    div_series = div_series.astype("float64") if not div_series.empty else pd.Series(dtype="float64")
+    div_series = div_series.sort_index()
 
-    monthly_close = monthly_close.astype("float64")
-    monthly_close.index = _to_month_end_index(monthly_close.index)
-    monthly_close = monthly_close.sort_index()
-    monthly_close = monthly_close[~monthly_close.index.duplicated(keep="last")]
-
-    if monthly_close.empty:
-        return []
-
-    # 월별 배당 합계로 변환
+    end_idx = close.index.max()
+    full_index = pd.date_range(buffer_start, end_idx, freq="D")
     if div_series.empty:
-        monthly_div = pd.Series(0.0, index=monthly_close.index)
+        div_daily = pd.Series(0.0, index=full_index)
     else:
-        monthly_div = div_series.resample("M").sum()
-        monthly_div.index = _to_month_end_index(monthly_div.index)
-        monthly_div = monthly_div.reindex(monthly_close.index, fill_value=0.0)
+        div_daily = (
+            div_series.resample("D").sum().reindex(full_index, fill_value=0.0)
+        )
 
-    # 12개월 롤링 TTM 배당 합계
-    monthly_ttm = monthly_div.rolling(window=12, min_periods=12).sum()
-    monthly_ttm = monthly_ttm.reindex(monthly_close.index, method="ffill")
+    # 최근 365일 배당 합계(TTM)
+    div_ttm = div_daily.rolling(window=365, min_periods=60).sum()
+    div_ttm_at_close = div_ttm.reindex(close.index, method="ffill")
 
-    # 배당수익률(%)
-    try:
-        yield_pct = (monthly_ttm.astype("float64") / monthly_close.astype("float64")) * 100.0
-    except Exception:
-        return []
+    # 배당수익률 (%) 계산
+    with pd.option_context("mode.use_inf_as_na", True):
+        yield_pct = (div_ttm_at_close.astype("float64") / close.astype("float64")) * 100.0
     yield_pct = yield_pct.dropna()
 
-    # 요청 기간 최근 N개월만
-    def _months_from_period(p: str) -> int:
-        p = (p or "11mo").strip().lower()
-        if p.endswith("mo"):
-            return max(1, int(p[:-2] or 11))
-        if p.endswith("y"):
-            return max(12, int(p[:-1] or 1) * 12)
-        if p.endswith("d"):
-            days = int(p[:-1] or 30)
-            return max(1, int((days + 29) // 30))
-        return 12
-
-    months = _months_from_period(period)
-    yield_pct = yield_pct.tail(months)
+    # 요청 기간 이후 데이터만 유지
+    yield_pct = yield_pct[yield_pct.index >= start_ts]
 
     out: List[Dict[str, float]] = []
     for idx2, val in yield_pct.items():
@@ -187,7 +178,7 @@ def _to_iso_date_safe(x) -> str:
 
 def compute_dividend_yield_series(period: str, source: str = "spy") -> Dict[str, List[Dict[str, float]]]:
     """
-    SPY ETF만 사용해 월별 TTM 배당수익률(%) 시계열을 계산합니다.
+    SPY ETF 일간 종가와 배당 정보를 사용해 일간 TTM 배당수익률(%) 시계열을 계산합니다.
     """
     series = _compute_sp500_yield(period)
     return {"symbol": "SPY", "series": series}

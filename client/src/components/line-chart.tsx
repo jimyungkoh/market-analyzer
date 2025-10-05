@@ -1,5 +1,7 @@
 import { TimeSeriesPoint } from "@/lib/indicators";
+import React from "react";
 import {
+  Area,
   CartesianGrid,
   Legend,
   Line,
@@ -27,7 +29,7 @@ type MergedRow = { date: number } & Record<string, number | undefined>;
 export default function LineChart({
   series,
   height = 240,
-  strokeWidth = 1.5,
+  strokeWidth = 2,
 }: LineChartProps) {
   const allPoints = series.flatMap((s) => s.data);
   if (allPoints.length === 0) return null;
@@ -65,14 +67,19 @@ export default function LineChart({
       <ResponsiveContainer width="100%" height={height}>
         <RechartsLineChart
           data={data}
-          margin={{ top: 10, right: 20, bottom: 20, left: 32 }}
+          margin={{ top: 10, right: 20, bottom: 30, left: 32 }}
         >
           <CartesianGrid stroke="#e5e7eb" vertical={false} />
           <XAxis
             dataKey="date"
             type="number"
             domain={["dataMin", "dataMax"]}
-            tickFormatter={(ts) => new Date(Number(ts)).toLocaleDateString()}
+            tickFormatter={(ts) =>
+              new Date(Number(ts)).toLocaleDateString("ko-KR", {
+                month: "short",
+                day: "numeric",
+              })
+            }
             tick={{ fill: "#52525b", fontSize: 12 }}
             axisLine={{ stroke: "#e5e7eb" }}
             tickLine={{ stroke: "#e5e7eb" }}
@@ -84,21 +91,41 @@ export default function LineChart({
             width={40}
           />
           <Tooltip
-            labelFormatter={(ts) => new Date(Number(ts)).toLocaleString()}
+            labelFormatter={(ts) =>
+              new Date(Number(ts)).toLocaleString("ko-KR")
+            }
           />
           <Legend />
-          {series.map((s, idx) => (
-            <Line
-              key={s.name}
-              type="monotone"
-              dataKey={s.name}
-              dot={false}
-              isAnimationActive={false}
-              stroke={s.color || defaultPalette[idx % defaultPalette.length]}
-              strokeWidth={strokeWidth}
-              connectNulls
-            />
-          ))}
+          {series.map((s, idx) => {
+            const color =
+              s.color || defaultPalette[idx % defaultPalette.length];
+            return (
+              <React.Fragment key={s.name}>
+                <Line
+                  key={`${s.name}-line`}
+                  type="monotone"
+                  dataKey={s.name}
+                  dot={false}
+                  isAnimationActive={false}
+                  stroke={color}
+                  strokeWidth={strokeWidth}
+                  connectNulls
+                />
+                {idx === 0 && (
+                  <Area
+                    key={`${s.name}-area`}
+                    type="monotone"
+                    dataKey={s.name}
+                    fill={color}
+                    fillOpacity={0.3}
+                    stroke={color}
+                    strokeWidth={0}
+                    connectNulls
+                  />
+                )}
+              </React.Fragment>
+            );
+          })}
         </RechartsLineChart>
       </ResponsiveContainer>
     </div>
