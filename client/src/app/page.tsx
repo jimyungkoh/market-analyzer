@@ -64,6 +64,7 @@ export default function Home() {
   }, [loadData]);
 
   const maWindow = 20; // 20일 단순 이동평균
+  const yieldSmaWindow = 120; // 옵션 B용 120일 SMA
   const { spySma, tipSma, spyMomentum, tipMomentum, isRiskA } = useMemo(() => {
     const spySmaLocal = calculateSMA(spy, maWindow);
     const tipSmaLocal = calculateSMA(tip, maWindow);
@@ -78,11 +79,19 @@ export default function Home() {
     };
   }, [spy, tip]);
 
-  const latestYield = useMemo(
-    () => spxYield[spxYield.length - 1]?.value ?? 0,
-    [spxYield]
-  );
-  const isRiskB = latestYield <= 1.32;
+  const { yieldSma120, latestYield, latestYieldSma120, isRiskB } =
+    useMemo(() => {
+      const yieldSmaLocal = calculateSMA(spxYield, yieldSmaWindow);
+      const latestValue = spxYield[spxYield.length - 1]?.value ?? 0;
+      const latestSmaValue =
+        yieldSmaLocal[yieldSmaLocal.length - 1]?.value ?? null;
+      return {
+        yieldSma120: yieldSmaLocal,
+        latestYield: latestValue,
+        latestYieldSma120: latestSmaValue,
+        isRiskB: latestSmaValue != null ? latestValue < latestSmaValue : false,
+      };
+    }, [spxYield]);
 
   return (
     <div className="font-sans min-h-screen p-8 sm:p-12">
@@ -161,13 +170,17 @@ export default function Home() {
                 {isRiskB ? "위험" : "안정"}
               </span>
               <span className="text-xs text-zinc-500">
-                S&P 500 배당수익률 임계값 1.32%
+                최근 {latestYield.toFixed(2)}% / SMA120{" "}
+                {latestYieldSma120 != null
+                  ? `${latestYieldSma120.toFixed(2)}%`
+                  : "데이터 준비 중"}
               </span>
             </div>
           </div>
 
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
-            최근 배당수익률이 1.32% 이하이면 위험 신호를 표시합니다.
+            배당수익률이 120일 이동평균선(파란선)보다 높으면 위험 신호를
+            표시합니다.
           </p>
 
           <div className="mt-4">
@@ -178,6 +191,11 @@ export default function Home() {
                   data: spxYield,
                   color: "#f59e0b",
                 },
+                {
+                  name: "Dividend Yield SMA(120)",
+                  data: yieldSma120,
+                  color: "#2563eb",
+                },
               ]}
               height={240}
             />
@@ -186,7 +204,8 @@ export default function Home() {
 
         <footer className="pt-4 text-xs text-zinc-500">
           데이터 출처: yfinance(SPY/TIP 종가, SPY 배당을 통한 배당수익률 근사).
-          로컬 파이썬 실행 필요.
+          API는 로컬 SQLite 캐시(Drizzle)를 우선 조회하고 결측 시에만 Python
+          스크립트를 호출합니다.
         </footer>
       </main>
     </div>
